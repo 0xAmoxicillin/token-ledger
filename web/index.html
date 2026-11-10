@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="oklch(0.2679 0.0036 106.6427)">
+<meta name="color-scheme" content="dark">
+<title>Token 消耗可视化 · 本机后台</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="app-shell">
+
+  <!-- ============ 侧边栏（纯前端导航，不新增业务页面） ============ -->
+  <aside id="sidebar" class="sidebar" aria-label="主导航">
+    <div class="sidebar-head">
+      <span class="logo" aria-hidden="true">&#9672;</span>
+      <div class="logo-text">
+        <span class="logo-title">Token 看板</span>
+        <span class="logo-sub">本机用量分析</span>
+      </div>
+      <button id="rail-toggle" class="rail-toggle" type="button" title="折叠侧栏" aria-label="折叠侧栏" aria-expanded="true"><span aria-hidden="true">&#10094;</span></button>
+    </div>
+
+    <nav class="nav-scroll">
+      <div class="nav-group">
+        <div class="nav-group-label">概览</div>
+        <a class="nav-item active" href="#sec-overview" data-target="sec-overview"><span class="nav-ico" aria-hidden="true">&#9635;</span><span class="nav-text">总览</span></a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-label">分析</div>
+        <a class="nav-item" href="#sec-agents" data-target="sec-agents"><span class="nav-ico" aria-hidden="true">&#9642;</span><span class="nav-text">各 Agent 消耗</span></a>
+        <a class="nav-item" href="#sec-timeseries" data-target="sec-timeseries"><span class="nav-ico" aria-hidden="true">&#9698;</span><span class="nav-text">每日趋势</span></a>
+        <a class="nav-item" href="#sec-donut" data-target="sec-donut"><span class="nav-ico" aria-hidden="true">&#9678;</span><span class="nav-text">消耗占比</span></a>
+        <a class="nav-item" href="#sec-models" data-target="sec-models"><span class="nav-ico" aria-hidden="true">&#9636;</span><span class="nav-text">模型分布</span></a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-label">数据</div>
+        <a class="nav-item" href="#sec-sessions" data-target="sec-sessions"><span class="nav-ico" aria-hidden="true">&#9776;</span><span class="nav-text">会话明细</span></a>
+      </div>
+    </nav>
+
+    <div class="sidebar-foot">
+      <div class="user-card">
+        <span class="user-avatar" aria-hidden="true">&#9672;</span>
+        <span class="user-meta">
+          <span id="auth-user" class="user-name">本机</span>
+          <span class="user-role">本机账户</span>
+        </span>
+      </div>
+      <button id="logout-btn" class="btn btn-ghost btn-block" type="button"><span class="btn-ico" aria-hidden="true">&#8592;</span><span class="nav-text"> 退出登录</span></button>
+    </div>
+  </aside>
+
+  <!-- ============ 右侧内容区（inset） ============ -->
+  <div class="content-area">
+    <header class="topbar">
+      <div class="crumb">
+        <span class="crumb-root">看板</span>
+        <span class="crumb-sep" aria-hidden="true">/</span>
+        <span id="crumb-current" class="crumb-current">总览</span>
+      </div>
+      <div class="controls">
+        <span class="offline-badge" title="所有数据均来自本机日志文件"><span class="live-dot" aria-hidden="true"></span>离线 · 本机数据</span>
+        <label class="ctl">
+          <span class="ctl-label">时间范围</span>
+          <select id="days-select">
+            <option value="7">近 7 天</option>
+            <option value="30" selected>近 30 天</option>
+            <option value="90">近 90 天</option>
+            <option value="0">全部</option>
+          </select>
+        </label>
+        <button id="refresh-btn" class="btn btn-primary" type="button"><span class="btn-ico" aria-hidden="true">&#8635;</span> 刷新数据</button>
+        <span class="ctl-sep" aria-hidden="true"></span>
+        <span id="last-updated" class="last-updated">&mdash;</span>
+      </div>
+    </header>
+
+    <div id="status" class="status status-idle" role="status" aria-live="polite"></div>
+
+    <main class="grid">
+      <section id="sec-overview" class="anchor-target">
+        <div class="page-heading">
+          <h1 class="page-title">总览</h1>
+          <p class="page-desc">本机各 Agent 的 Token 消耗、趋势与会话明细</p>
+        </div>
+      </section>
+      <section id="kpis" class="kpi-grid" aria-label="关键指标"></section>
+
+      <section id="sec-agents" class="card anchor-target">
+        <div class="card-head">
+          <div class="card-title">
+            <span class="card-idx" aria-hidden="true">01</span>
+            <div>
+              <h2>各 Agent Token 消耗</h2>
+              <p class="card-sub">按总消耗降序 · 一眼看清每个 agent 用了多少</p>
+            </div>
+          </div>
+          <span class="tag">主视图</span>
+        </div>
+        <div id="agent-bars" class="chart-host"></div>
+      </section>
+
+      <section id="sec-timeseries" class="card anchor-target">
+        <div class="card-head">
+          <div class="card-title">
+            <span class="card-idx" aria-hidden="true">02</span>
+            <div>
+              <h2>每日消耗趋势</h2>
+              <p class="card-sub">按天堆叠面积 · 各 agent 分色</p>
+            </div>
+          </div>
+          <span id="ts-sub" class="tag tag-plain"></span>
+        </div>
+        <div id="timeseries" class="chart-host"></div>
+      </section>
+
+      <section id="sec-donut" class="card card-half anchor-target">
+        <div class="card-head">
+          <div class="card-title">
+            <span class="card-idx" aria-hidden="true">03</span>
+            <div>
+              <h2>消耗占比</h2>
+              <p class="card-sub">各 agent 份额</p>
+            </div>
+          </div>
+        </div>
+        <div id="donut" class="chart-host"></div>
+      </section>
+
+      <section id="sec-models" class="card card-half anchor-target">
+        <div class="card-head">
+          <div class="card-title">
+            <span class="card-idx" aria-hidden="true">04</span>
+            <div>
+              <h2>模型分布</h2>
+              <p class="card-sub">Model / Agent / Tokens · Top 12</p>
+            </div>
+          </div>
+        </div>
+        <div id="models" class="chart-host"></div>
+      </section>
+
+      <section id="sec-sessions" class="card anchor-target">
+        <div class="card-head">
+          <div class="card-title">
+            <span class="card-idx" aria-hidden="true">05</span>
+            <div>
+              <h2>会话明细</h2>
+              <p class="card-sub">按总消耗降序 · 默认 50 行</p>
+            </div>
+          </div>
+          <span id="sessions-count" class="tag tag-plain"></span>
+        </div>
+        <div id="sessions" class="chart-host table-host"></div>
+      </section>
+
+      <footer class="footer">
+        <span>数据源：Claude Code / Codex / Pi 本机会话日志 · 经 collector.py 入库</span>
+        <span>标准库后端 + 原生前端 + 内联 SVG · 无 CDN / 无第三方依赖 / 无 mock 数据</span>
+      </footer>
+    </main>
+  </div>
+</div>
+
+<noscript><div class="empty">需要启用 JavaScript 才能查看图表。</div></noscript>
+<script src="/app.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>登录 · Token 消耗可视化</title>
+<style>
+  /* 模板 claude.dark 暗色色板（OKLCH 字面值），零外部资源。
+     尺寸对齐 shadcn：4px 基准、控件 gap-2、分组 gap-4、圆角 8/6/12px。 */
+  :root {
+    --background: oklch(0.2679 0.0036 106.6427);
+    --foreground: oklch(0.8074 0.0142 93.0137);
+    --card: oklch(0.2679 0.0036 106.6427);
+    --card-foreground: oklch(0.9818 0.0054 95.0986);
+    --muted: oklch(0.2213 0.0038 106.707);
+    --muted-foreground: oklch(0.7713 0.0169 99.0657);
+    --primary: oklch(0.6724 0.1308 38.7559);
+    --primary-foreground: oklch(1 0 0);
+    --accent: oklch(0.213 0.0078 95.4245);
+    --border: oklch(0.3618 0.0101 106.8928);
+    --input: oklch(0.4336 0.0113 100.2195);
+    --ring: oklch(0.6724 0.1308 38.7559);
+    --destructive: oklch(0.6368 0.2078 25.3313);
+    --sidebar: oklch(0.2357 0.0024 67.7077);
+    --sidebar-foreground: oklch(0.8074 0.0142 93.0137);
+    --sidebar-accent: oklch(0.168 0.002 106.6177);
+    --sidebar-border: var(--border);
+    --radius: 0.5rem;
+    --radius-md: 0.375rem;
+    --radius-xl: 0.75rem;
+    --spacing: 0.25rem;
+    --shadow: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
+    --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  /* form / .empty / .steps 自带 display，必须显式压制 hidden */
+  [hidden] { display: none !important; }
+  html { min-height: 100%; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    padding: 16px;
+    display: grid;
+    place-items: center;
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .stage {
+    position: relative; z-index: 1;
+    width: 100%; max-width: 400px;
+    animation: rise 240ms cubic-bezier(.2,.75,.3,1) both;
+  }
+
+  /* 品牌区：size-8 / rounded-md / bg-primary 的几何 logo + 产品名 + 副标 */
+  .brand { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-bottom: 16px; }
+  .brand-mark {
+    width: 32px; height: 32px;
+    display: grid; place-items: center;
+    background: var(--primary);
+    border-radius: var(--radius-md);
+  }
+  .brand-mark svg { width: 18px; height: 18px; display: block; color: var(--primary-foreground); }
+  .brand-name { font-size: 14px; font-weight: 600; letter-spacing: .01em; color: var(--card-foreground); }
+  .brand-sub { margin: 0; font-size: 12px; color: var(--muted-foreground); }
+
+  /* Card：rounded-xl + ring-1 ring-foreground/10 细环 + 轻阴影；扁平、16px 内间距 */
+  .card {
+    display: flex; flex-direction: column; gap: 16px;
+    width: 100%; padding: 16px;
+    background: var(--card);
+    color: var(--card-foreground);
+    border-radius: var(--radius-xl);
+    box-shadow:
+      0 0 0 1px color-mix(in oklch, var(--foreground) 10%, transparent),
+      var(--shadow);
+  }
+  .head { display: grid; gap: 4px; }
+  h1 { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: -.01em; }
+  .sub { margin: 0; font-size: 14px; color: var(--muted-foreground); }
+
+  /* 步骤 2/2 进度指示 */
+  .steps { display: grid; gap: 8px; }
+  .steps-tag {
+    font-family: var(--font-mono); font-size: 11px; letter-spacing: .06em;
+    color: var(--muted-foreground); text-transform: uppercase;
+  }
+  .steps-track { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .step { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 12px; color: var(--muted-foreground); }
+  .step i {
+    display: grid; place-items: center; flex: none;
+    width: 20px; height: 20px;
+    font-family: var(--font-mono); font-style: normal; font-size: 11px; font-weight: 500;
+    border: 1px solid var(--border); border-radius: 50%;
+    background: var(--muted); color: var(--muted-foreground);
+  }
+  .step.done i { background: var(--primary); border-color: var(--primary); color: var(--primary-foreground); }
+  .step.active { color: var(--card-foreground); }
+  .step.active i { border-color: var(--ring); color: var(--ring); box-shadow: 0 0 0 3px color-mix(in oklch, var(--ring) 50%, transparent); }
+  .step-line { flex: 1; min-width: 6px; height: 1px; background: var(--border); }
+  .step-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* 表单布局：分组 gap-4(16px)，控件 gap-2(8px) */
+  form { display: grid; gap: 16px; margin: 0; }
+  .group { display: grid; gap: 8px; min-width: 0; }
+  .group + .group { border-top: 1px solid var(--border); }
+  .group-title {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 12px; font-weight: 500; color: var(--muted-foreground);
+  }
+  .group-title .gi { font-family: var(--font-mono); font-size: 11px; color: var(--primary); }
+  .fields { display: grid; gap: 8px; min-width: 0; }
+
+  /* Input：h-8 / w-full / rounded-lg / border-input / bg-transparent / px-2.5 py-1 / text-sm */
+  .field { position: relative; min-width: 0; }
+  .field-icon {
+    position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+    width: 14px; height: 14px; color: var(--muted-foreground); pointer-events: none;
+    transition: color .15s ease;
+  }
+  .field input {
+    width: 100%; height: 32px;
+    padding: 4px 10px 4px 32px;
+    font-family: var(--font-sans); font-size: 14px; line-height: 1.5;
+    color: var(--card-foreground);
+    background: transparent;
+    border: 1px solid var(--input);
+    border-radius: var(--radius);
+    outline: none;
+    transition: border-color .15s ease, box-shadow .15s ease;
+  }
+  .field input::placeholder { color: var(--muted-foreground); }
+  .field input:hover:not(:disabled) { border-color: var(--foreground); }
+  .field input:focus-visible {
+    border-color: var(--ring);
+    box-shadow: 0 0 0 3px color-mix(in oklch, var(--ring) 50%, transparent);
+  }
+  .field input:disabled { opacity: .5; cursor: not-allowed; }
+  .field:focus-within .field-icon { color: var(--ring); }
+
+  /* Button：h-8 / rounded-lg / px-2.5 / text-sm font-medium；default 纯色 primary */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    width: 100%; height: 32px; padding: 0 10px;
+    font-family: var(--font-sans); font-size: 14px; font-weight: 500; line-height: 1;
+    color: var(--primary-foreground);
+    background: var(--primary);
+    border: 1px solid transparent;
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: background-color .15s ease, color .15s ease;
+  }
+  .btn:hover:not(:disabled) { background: color-mix(in oklch, var(--primary) 80%, transparent); }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .btn-ghost {
+    width: auto; min-width: 96px;
+    color: var(--card-foreground);
+    background: transparent;
+    border-color: var(--border);
+  }
+  .btn-ghost:hover:not(:disabled) { background: var(--accent); color: var(--card-foreground); }
+  .spinner {
+    display: none; width: 12px; height: 12px; flex: none;
+    border: 2px solid color-mix(in oklch, var(--primary-foreground) 40%, transparent);
+    border-top-color: var(--primary-foreground);
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+  }
+  .btn.loading .spinner { display: inline-block; }
+
+  /* Empty 组件：居中 dashed 容器 + size-8 rounded-lg bg-muted 图标 + 标题 + 描述 + 操作按钮。
+     只渲染固定文案，不展示后端 error 原文。 */
+  .empty {
+    display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px;
+    padding: 16px;
+    background: color-mix(in oklch, var(--muted) 35%, transparent);
+    border: 1px dashed var(--border);
+    border-radius: var(--radius);
+  }
+  .empty-icon {
+    width: 32px; height: 32px; flex: none;
+    display: grid; place-items: center;
+    background: var(--muted);
+    border-radius: var(--radius);
+    color: var(--destructive);
+  }
+  .empty-icon svg { width: 16px; height: 16px; }
+  .empty-ok .empty-icon { color: var(--primary); }
+  .empty-title { font-size: 14px; font-weight: 500; color: var(--card-foreground); }
+  .empty-desc { font-size: 14px; color: var(--muted-foreground); }
+
+  /* 底部安全提示 */
+  .foot {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    padding-top: 16px; border-top: 1px solid var(--border);
+    font-size: 12px; color: var(--muted-foreground);
+  }
+  .foot svg { width: 13px; height: 13px; flex: none; }
+
+  .svg-defs { position: absolute; width: 0; height: 0; overflow: hidden; }
+
+  @media (max-width: 380px) {
+    body { padding: 12px; }
+    .brand-sub { font-size: 11px; }
+    .step-label { font-size: 11px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: .01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: .01ms !important;
+    }
+  }
+</style>
+</head>
+<body>
+<svg class="svg-defs" aria-hidden="true" focusable="false">
+  <symbol id="i-logo" viewBox="0 0 20 20">
+    <path d="M3 13l4-4 3 2 7-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="17" cy="4" r="1.6" fill="currentColor"/>
+  </symbol>
+  <symbol id="i-user" viewBox="0 0 20 20">
+    <circle cx="10" cy="6.5" r="3" fill="none" stroke="currentColor" stroke-width="1.5"/>
+    <path d="M3.5 16.5c0-3 2.9-5 6.5-5s6.5 2 6.5 5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+  </symbol>
+  <symbol id="i-lock" viewBox="0 0 20 20">
+    <rect x="4.5" y="8.5" width="11" height="8" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/>
+    <path d="M7 8.5V6a3 3 0 0 1 6 0v2.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+  </symbol>
+  <symbol id="i-key" viewBox="0 0 20 20">
+    <circle cx="7" cy="7" r="3.2" fill="none" stroke="currentColor" stroke-width="1.5"/>
+    <path d="M9.5 9.5L16 16m-2.5-2.5l1.6-1.6M12 12l1.6-1.6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+  </symbol>
+  <symbol id="i-shield" viewBox="0 0 20 20">
+    <path d="M10 2.5l6 2.2v5c0 3.7-2.5 6.4-6 7.8-3.5-1.4-6-4.1-6-7.8v-5z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
+    <path d="M7.5 10l1.8 1.8 3.4-3.6" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+  </symbol>
+  <symbol id="i-alert" viewBox="0 0 20 20">
+    <circle cx="10" cy="10" r="7.5" fill="none" stroke="currentColor" stroke-width="1.5"/>
+    <path d="M10 6.5v4.2M10 13.4v.1" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+  </symbol>
+</svg>
+
+<div class="stage">
+  <header class="brand">
+    <div class="brand-mark" aria-hidden="true"><svg viewBox="0 0 20 20"><use href="#i-logo"></use></svg></div>
+    <div class="brand-name">Token 消耗可视化</div>
+    <p class="brand-sub">本机离线后台 · 看清每一次调用的成本</p>
+  </header>
+
+  <main class="card">
+    <div class="steps" id="steps" hidden>
+      <span class="steps-tag">步骤 2 / 2</span>
+      <div class="steps-track">
+        <span class="step done"><i>&#10003;</i><span class="step-label">验证身份</span></span>
+        <span class="step-line"></span>
+        <span class="step active"><i>2</i><span class="step-label">设置新密码</span></span>
+      </div>
+    </div>
+
+    <div class="head">
+      <h1 id="title">登录</h1>
+      <p class="sub" id="subtitle">欢迎回来，请登录以继续</p>
+    </div>
+
+    <div id="msg" class="empty" role="alert" aria-live="polite" hidden>
+      <div class="empty-icon" aria-hidden="true"><svg><use href="#i-alert"></use></svg></div>
+      <div class="empty-title" id="msg-title"></div>
+      <div class="empty-desc" id="msg-text"></div>
+      <button id="msg-action" class="btn btn-ghost" type="button"></button>
+    </div>
+
+    <form id="login-form" novalidate>
+      <div class="fields">
+        <div class="field">
+          <svg class="field-icon" aria-hidden="true"><use href="#i-user"></use></svg>
+          <input id="username" type="text" autocomplete="username" placeholder="用户名" required>
+        </div>
+        <div class="field">
+          <svg class="field-icon" aria-hidden="true"><use href="#i-lock"></use></svg>
+          <input id="login-pw" type="password" autocomplete="current-password" placeholder="密码" required>
+        </div>
+      </div>
+      <button id="login-btn" class="btn" type="submit">
+        <span class="spinner" aria-hidden="true"></span>
+        <span class="btn-label" id="login-label">登录</span>
+      </button>
+    </form>
+
+    <form id="change-form" novalidate hidden>
+      <div class="group">
+        <div class="group-title"><span class="gi">01</span> 验证当前凭据</div>
+        <div class="fields">
+          <div class="field">
+            <svg class="field-icon" aria-hidden="true"><use href="#i-lock"></use></svg>
+            <input id="old-pw" type="password" autocomplete="current-password" placeholder="当前密码" required>
+          </div>
+        </div>
+      </div>
+      <div class="group">
+        <div class="group-title"><span class="gi">02</span> 设置新密码</div>
+        <div class="fields">
+          <div class="field">
+            <svg class="field-icon" aria-hidden="true"><use href="#i-key"></use></svg>
+            <input id="new-pw" type="password" autocomplete="new-password" placeholder="新密码" required>
+          </div>
+          <div class="field">
+            <svg class="field-icon" aria-hidden="true"><use href="#i-key"></use></svg>
+            <input id="confirm-pw" type="password" autocomplete="new-password" placeholder="确认新密码" required>
+          </div>
+        </div>
+      </div>
+      <button id="change-btn" class="btn" type="submit">
+        <span class="spinner" aria-hidden="true"></span>
+        <span class="btn-label" id="change-label">设置新密码并重新登录</span>
+      </button>
+    </form>
+
+    <div class="foot">
+      <svg aria-hidden="true"><use href="#i-shield"></use></svg>
+      <span>仅本机可访问 · 会话由服务端 HttpOnly Cookie 保护</span>
+    </div>
+  </main>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* v2 契约字段与端点（纯小写 ASCII）：逐字保留，集中定义便于与后端对齐。 */
+  var PW_FIELD = 'pw';
+  var OLD_PW_FIELD = 'old_pw';
+  var NEW_PW_FIELD = 'new_pw';
+  var LOGIN_URL = '/api/auth/login';
+  var CHANGE_URL = '/api/auth/change-pw';
+
+  var MSG_BAD_CRED = '用户名或密码错误';
+  var MSG_BAD_CURRENT = '当前密码不正确';
+  var MSG_GENERIC = '服务暂时不可用，请稍后重试';
+  var MSG_EMPTY = '请填写所有字段';
+  var MSG_TOO_SHORT = '新密码至少 8 位';
+  var MSG_MISMATCH = '两次输入的新密码不一致';
+  var MSG_CHANGED = '请使用新密码重新登录';
+
+  /* 受控校验文案：只由白名单 code 索引，界面永远拿不到后端 error 原文。 */
+  var MSG_VALIDATION = {
+    too_short: '新密码至少 8 位',
+    invalid_request: '请检查输入内容'
+  };
+  var MSG_VALIDATION_UNKNOWN = '输入不符合要求，请检查后重试';
+
+  /* 受控标题映射：错误只区分「输入有误」与「服务不可用」。 */
+  var TITLE_ERROR = '输入有误';
+  var TITLE_SERVICE = '服务不可用';
+  var TITLE_OK = '密码已修改';
+  var ACTION_ERROR = '重试';
+  var ACTION_OK = '开始登录';
+
+  /* 400/422 的后端 error 原文仅用于查这张白名单，映射出的 code 才进入界面。 */
+  var ERROR_CODES = {
+    'new password too short': 'too_short',
+    'invalid request': 'invalid_request'
+  };
+  var MIN_NEW_PW_LEN = 8;
+
+  var LABEL_LOGIN = '登录';
+  var LABEL_LOGIN_BUSY = '正在登录…';
+  var LABEL_CHANGE = '设置新密码并重新登录';
+  var LABEL_CHANGE_BUSY = '正在设置…';
+
+  var title = document.getElementById('title');
+  var subtitle = document.getElementById('subtitle');
+  var steps = document.getElementById('steps');
+  var msg = document.getElementById('msg');
+  var msgTitle = document.getElementById('msg-title');
+  var msgText = document.getElementById('msg-text');
+  var msgAction = document.getElementById('msg-action');
+  var loginForm = document.getElementById('login-form');
+  var changeForm = document.getElementById('change-form');
+  var loginBtn = document.getElementById('login-btn');
+  var changeBtn = document.getElementById('change-btn');
+  var loginLabel = document.getElementById('login-label');
+  var changeLabel = document.getElementById('change-label');
+  var usernameEl = document.getElementById('username');
+  var loginPwEl = document.getElementById('login-pw');
+  var oldPwEl = document.getElementById('old-pw');
+  var newPwEl = document.getElementById('new-pw');
+  var confirmPwEl = document.getElementById('confirm-pw');
+
+  function showMsg(text, ok, title) {
+    msg.classList.toggle('empty-ok', !!ok);
+    msgTitle.textContent = ok ? TITLE_OK : (title || TITLE_ERROR);
+    msgText.textContent = text;
+    msgAction.textContent = ok ? ACTION_OK : ACTION_ERROR;
+    msg.hidden = false;
+  }
+  function clearMsg() {
+    msg.hidden = true;
+    msg.classList.remove('empty-ok');
+    msgTitle.textContent = '';
+    msgText.textContent = '';
+  }
+  /* Empty 里的 ghost 操作按钮：收起提示并回到当前表单，不改变认证流程。 */
+  msgAction.addEventListener('click', function () {
+    clearMsg();
+    (changeForm.hidden ? usernameEl : oldPwEl).focus();
+  });
+
+  /* 提交加载态：禁用 + spinner + 文案变化 */
+  function setLoading(btn, label, on, busyText, idleText) {
+    btn.disabled = !!on;
+    btn.classList.toggle('loading', !!on);
+    btn.setAttribute('aria-busy', on ? 'true' : 'false');
+    label.textContent = on ? busyText : idleText;
+  }
+
+  /* 后端 error 原文 -> 受控 code；查不到一律 unknown，原文不进入界面。 */
+  function validationCode(raw) {
+    var key = String(raw || '').trim().toLowerCase();
+    return Object.prototype.hasOwnProperty.call(ERROR_CODES, key)
+      ? ERROR_CODES[key] : 'unknown';
+  }
+
+  function isChangeStage() {
+    return !changeForm.hidden;
+  }
+
+  /* 统一解包 {ok:true,data} / {ok:false,error}。
+     按状态码分类：401 凭据、400/422 校验、5xx 服务、fetch 异常网络。
+     抛出的对象只含受控 kind/code，绝不携带后端原文、HTTP 状态或堆栈。 */
+  async function postJSON(url, body) {
+    var res;
+    try {
+      res = await fetch(url, {
+        method: 'POST',
+        credentials: 'same-origin',
+        cache: 'no-store',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+    } catch (e) {
+      throw { kind: 'network' };
+    }
+    if (res.status === 401) { throw { kind: 'unauthorized' }; }
+    if (res.status === 400 || res.status === 422) {
+      var detail = null;
+      try { detail = await res.json(); } catch (e) { detail = null; }
+      var raw = (detail && detail.error) ? detail.error : '';
+      throw { kind: 'validation', code: validationCode(raw) };
+    }
+    if (res.status >= 500) { throw { kind: 'server' }; }
+    if (!res.ok) { throw { kind: 'server' }; }
+    var payload;
+    try { payload = await res.json(); } catch (e) { throw { kind: 'server' }; }
+    if (!payload || payload.ok !== true) { throw { kind: 'server' }; }
+    return payload.data || {};
+  }
+
+  /* 受控文案 + 受控标题映射：kind 决定类别，code 决定具体校验提示。 */
+  function friendly(err) {
+    var kind = err && err.kind;
+    if (kind === 'unauthorized') {
+      return { title: TITLE_ERROR,
+               text: isChangeStage() ? MSG_BAD_CURRENT : MSG_BAD_CRED };
+    }
+    if (kind === 'validation') {
+      var code = (err && err.code) || 'unknown';
+      var text = Object.prototype.hasOwnProperty.call(MSG_VALIDATION, code)
+        ? MSG_VALIDATION[code] : MSG_VALIDATION_UNKNOWN;
+      return { title: TITLE_ERROR, text: text };
+    }
+    return { title: TITLE_SERVICE, text: MSG_GENERIC };
+  }
+
+  function showChangeForm() {
+    loginForm.hidden = true;
+    changeForm.hidden = false;
+    steps.hidden = false;
+    title.textContent = '设置新密码';
+    subtitle.textContent = '首次登录需设置新密码，完成后请重新登录';
+    clearMsg();
+    oldPwEl.focus();
+  }
+
+  loginForm.addEventListener('submit', async function (ev) {
+    ev.preventDefault();
+    clearMsg();
+    var u = usernameEl.value.trim();
+    var p = loginPwEl.value;
+    if (!u || !p) { showMsg(MSG_EMPTY); return; }
+    var body = { username: u };
+    body[PW_FIELD] = p;
+    setLoading(loginBtn, loginLabel, true, LABEL_LOGIN_BUSY, LABEL_LOGIN);
+    try {
+      var data = await postJSON(LOGIN_URL, body);
+      /* 首次登录按真值兼容布尔与数字两种序列化。 */
+      if (data.must_change_pw) {
+        showChangeForm();
+        return;
+      }
+      location.href = '/';
+    } catch (err) {
+      var f = friendly(err);
+      showMsg(f.text, false, f.title);
+    } finally {
+      setLoading(loginBtn, loginLabel, false, LABEL_LOGIN_BUSY, LABEL_LOGIN);
+    }
+  });
+
+  changeForm.addEventListener('submit', async function (ev) {
+    ev.preventDefault();
+    clearMsg();
+    var oldPw = oldPwEl.value;
+    var newPw = newPwEl.value;
+    var confirmPw = confirmPwEl.value;
+    if (!oldPw || !newPw || !confirmPw) { showMsg(MSG_EMPTY); return; }
+    if (newPw.length < MIN_NEW_PW_LEN) { showMsg(MSG_TOO_SHORT); return; }
+    if (newPw !== confirmPw) { showMsg(MSG_MISMATCH); return; }
+    var body = {};
+    body[OLD_PW_FIELD] = oldPw;
+    body[NEW_PW_FIELD] = newPw;
+    setLoading(changeBtn, changeLabel, true, LABEL_CHANGE_BUSY, LABEL_CHANGE);
+    try {
+      await postJSON(CHANGE_URL, body);
+      /* 一次性提示标记：跳回登录页后显示「请使用新密码重新登录」。会话 Cookie 完全由后端管理。 */
+      try { sessionStorage.setItem('td_pw_changed', '1'); } catch (e) {}
+      location.href = '/login.html';
+    } catch (err) {
+      var g = friendly(err);
+      showMsg(g.text, false, g.title);
+    } finally {
+      setLoading(changeBtn, changeLabel, false, LABEL_CHANGE_BUSY, LABEL_CHANGE);
+    }
+  });
+
+  try {
+    if (sessionStorage.getItem('td_pw_changed') === '1') {
+      sessionStorage.removeItem('td_pw_changed');
+      showMsg(MSG_CHANGED, true);
+    }
+  } catch (e) {}
+})();
+</script>
+</body>
+</html>

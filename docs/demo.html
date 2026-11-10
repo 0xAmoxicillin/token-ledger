@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Orca · 产品演示</title>
+<style>
+:root{
+  --background: oklch(0.2679 0.0036 106.6427);
+  --foreground: oklch(0.8074 0.0142 93.0137);
+  --card: oklch(0.2679 0.0036 106.6427);
+  --card-foreground: oklch(0.9818 0.0054 95.0986);
+  --muted: oklch(0.2213 0.0038 106.707);
+  --muted-foreground: oklch(0.7713 0.0169 99.0657);
+  --primary: oklch(0.6724 0.1308 38.7559);
+  --primary-foreground: oklch(1 0 0);
+  --accent: oklch(0.213 0.0078 95.4245);
+  --border: oklch(0.3618 0.0101 106.8928);
+  --input: oklch(0.4336 0.0113 100.2195);
+  --ring: oklch(0.6724 0.1308 38.7559);
+  --sidebar: oklch(0.2357 0.0024 67.7077);
+  --sidebar-foreground: oklch(0.8074 0.0142 93.0137);
+  --sidebar-accent: oklch(0.168 0.002 106.6177);
+  --destructive: oklch(0.6368 0.2078 25.3313);
+  --radius: 8px;
+  --radius-xl: 12px;
+  --shadow: 0 1px 3px 0px hsl(0 0% 0% / .1), 0 1px 2px -1px hsl(0 0% 0% / .1);
+  --pi:#7c9cff; --codex:#3fb6a8; --claude:#e08a5f;
+  --font: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{background:var(--background);color:var(--foreground);font-family:var(--font);font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased;min-height:100vh;overflow-x:hidden;}
+h1,h2,h3,p{margin:0;}
+button,select{font-family:inherit;}
+
+/* ---------- 舞台 ---------- */
+.stage{position:relative;min-height:calc(100vh - 58px);display:grid;place-items:center;padding:24px;overflow:hidden;}
+.scene{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:24px;opacity:0;visibility:hidden;transition:opacity .45s ease;pointer-events:none;}
+.scene.on{opacity:1;visibility:visible;pointer-events:auto;}
+.scene > .scene-inner{width:100%;max-width:1080px;}
+
+/* ---------- 通用卡片 / 控件 ---------- */
+.card{background:var(--card);color:var(--card-foreground);border-radius:var(--radius-xl);padding:16px;box-shadow:var(--shadow),0 0 0 1px rgba(255,255,255,.1);}
+.btn{font-size:13px;line-height:1;color:var(--foreground);background:var(--background);border:1px solid var(--input);border-radius:var(--radius);height:32px;padding:0 10px;cursor:pointer;display:inline-flex;align-items:center;gap:8px;transition:background .15s,border-color .15s;}
+.btn:hover{border-color:var(--ring);}
+.btn:focus-visible{outline:none;border-color:var(--ring);box-shadow:0 0 0 3px rgba(217,119,87,.5);}
+.btn-primary{background:var(--primary);color:var(--primary-foreground);border-color:var(--primary);}
+.btn-primary:hover{background:rgba(217,119,87,.8);}
+.tag{font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--primary);background:rgba(217,119,87,.12);border:1px solid rgba(217,119,87,.25);padding:4px 8px;border-radius:var(--radius);}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums;}
+.muted{color:var(--muted-foreground);}
+
+/* ---------- 旁白气泡 ---------- */
+.caption{position:fixed;left:50%;bottom:74px;transform:translateX(-50%) translateY(8px);z-index:30;max-width:min(720px,calc(100vw - 32px));background:var(--card);color:var(--card-foreground);border:1px solid var(--border);border-radius:var(--radius-xl);box-shadow:0 8px 28px rgba(0,0,0,.45),0 0 0 1px rgba(255,255,255,.06);padding:10px 16px;font-size:13px;text-align:center;opacity:0;transition:opacity .3s,transform .3s;pointer-events:none;}
+.caption.on{opacity:1;transform:translateX(-50%) translateY(0);}
+.caption .step-no{display:inline-block;margin-right:8px;color:var(--primary);font-family:var(--mono);font-size:11px;font-weight:700;}
+
+/* ---------- 控制条 ---------- */
+.dock{position:fixed;left:0;right:0;bottom:0;z-index:40;height:58px;display:flex;align-items:center;gap:8px;padding:0 16px;background:rgba(58,58,54,.92);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);border-top:1px solid var(--border);}
+.dock .step-label{min-width:132px;font-size:11.5px;color:var(--muted-foreground);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.dock .step-label b{color:var(--foreground);font-family:var(--mono);}
+.progress{flex:1 1 auto;height:6px;border-radius:6px;background:var(--muted);overflow:hidden;min-width:60px;}
+.progress > i{display:block;height:100%;width:0;background:var(--primary);border-radius:6px;transition:width .2s linear;}
+.dock .spacer{flex:0 0 auto;}
+
+/* ---------- 场景 1 开场 ---------- */
+.opening{text-align:center;}
+.opening .mark{display:grid;place-items:center;width:64px;height:64px;margin:0 auto 24px;border-radius:var(--radius);background:var(--primary);color:var(--primary-foreground);font-size:32px;font-weight:800;box-shadow:var(--shadow);}
+.opening h1{font-size:44px;font-weight:700;letter-spacing:-.02em;color:var(--card-foreground);}
+.opening .sub{font-size:16px;color:var(--muted-foreground);margin-top:12px;}
+.opening .sign{margin-top:32px;display:inline-block;font-size:12px;letter-spacing:.08em;color:var(--primary);border:1px solid rgba(217,119,87,.35);border-radius:var(--radius);padding:8px 16px;}
+@keyframes fadeScale{from{opacity:0;transform:scale(.94);}to{opacity:1;transform:none;}}
+.play .opening > *{animation:fadeScale .7s ease both;}
+.play .opening > *:nth-child(2){animation-delay:.15s;}
+.play .opening > *:nth-child(3){animation-delay:.3s;}
+.play .opening > *:nth-child(4){animation-delay:.45s;}
+
+/* ---------- 场景 2 登录 ---------- */
+.login-wrap{display:flex;justify-content:center;}
+.login-card{width:min(380px,100%);}
+.login-card h2{font-size:18px;font-weight:650;}
+.login-card .desc{font-size:12px;color:var(--muted-foreground);margin:6px 0 20px;}
+.field{margin-bottom:12px;}
+.field label{display:block;font-size:11px;color:var(--muted-foreground);margin-bottom:6px;}
+.field .box{height:36px;display:flex;align-items:center;padding:0 10px;background:var(--background);border:1px solid var(--input);border-radius:var(--radius);font-family:var(--mono);font-size:13px;color:var(--card-foreground);}
+.field .box .caret{display:inline-block;width:1px;height:15px;background:var(--primary);margin-left:2px;animation:blink .8s steps(1) infinite;vertical-align:middle;}
+@keyframes blink{50%{opacity:0;}}
+.login-card .btn{width:100%;justify-content:center;margin-top:4px;height:36px;}
+@keyframes slideOut{from{transform:translateX(0);opacity:1;}to{transform:translateX(56px);opacity:0;}}
+.login-card.leaving{animation:slideOut .55s ease forwards;}
+
+/* ---------- 看板骨架 ---------- */
+.dash{display:grid;gap:16px;}
+.dash-top{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+.dash-top h2{font-size:15px;font-weight:650;}
+.kpis{display:grid;grid-template-columns:1.8fr repeat(6,minmax(0,1fr));gap:8px;}
+.kpi{background:var(--card);border-radius:var(--radius-xl);padding:12px;box-shadow:var(--shadow),0 0 0 1px rgba(255,255,255,.1);opacity:0;transform:translateY(6px);}
+.kpi.in{animation:rise .4s ease forwards;}
+@keyframes rise{to{opacity:1;transform:none;}}
+.kpi .lbl{font-size:10.5px;color:var(--muted-foreground);}
+.kpi .val{font-family:var(--mono);font-size:20px;font-weight:650;margin-top:6px;color:var(--card-foreground);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.kpi .sub{font-size:9.5px;color:var(--muted-foreground);margin-top:2px;}
+.kpi.primary{border:1px solid rgba(217,119,87,.35);}
+.kpi.primary .lbl{color:var(--primary);font-weight:600;}
+.kpi.primary .val{font-size:30px;font-weight:700;}
+.skeleton{height:10px;border-radius:var(--radius);background:var(--muted);animation:pulse 1.4s ease-in-out infinite;}
+@keyframes pulse{0%,100%{opacity:.4;}50%{opacity:1;}}
+.charts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;}
+.chart-card{background:var(--card);border-radius:var(--radius-xl);padding:16px;box-shadow:var(--shadow),0 0 0 1px rgba(255,255,255,.1);min-width:0;}
+.chart-card.wide{grid-column:1/-1;}
+.chart-card h3{font-size:13px;font-weight:650;margin-bottom:12px;}
+svg.chart{width:100%;height:auto;display:block;overflow:visible;}
+svg .grid-line{stroke:rgba(255,255,255,.09);stroke-width:1;shape-rendering:crispEdges;}
+svg .axis{fill:var(--muted-foreground);font-family:var(--mono);font-size:10px;}
+svg .lbl{fill:var(--card-foreground);font-size:12px;font-weight:600;}
+svg .val{fill:var(--card-foreground);font-family:var(--mono);font-size:12px;font-weight:650;}
+svg .pct{fill:var(--muted-foreground);font-family:var(--mono);font-size:10.5px;}
+svg .head{fill:var(--muted-foreground);font-size:10px;letter-spacing:.1em;font-weight:600;}
+svg .track{fill:var(--muted);}
+svg .bar{transition:width .7s cubic-bezier(.22,1,.36,1);}
+svg .seg{transition:stroke-dashoffset .8s ease,opacity .3s;}
+svg .area{transition:opacity .7s ease;}
+svg .line{transition:stroke-dashoffset 1.1s ease;}
+@keyframes barGrow{from{width:0;}}
+svg .bar.grow{animation:barGrow .8s cubic-bezier(.22,1,.36,1) both;}
+
+/* ---------- 表格 ---------- */
+.tbl-scroll{overflow-x:auto;border:1px solid var(--border);border-radius:var(--radius);}
+table.tbl{width:100%;border-collapse:collapse;font-size:12px;}
+table.tbl th{position:sticky;top:0;height:40px;padding:0 8px;text-align:left;font-weight:500;font-size:11px;color:var(--muted-foreground);background:var(--muted);border-bottom:1px solid var(--border);white-space:nowrap;}
+table.tbl td{padding:8px;border-bottom:1px solid var(--border);white-space:nowrap;}
+table.tbl tr.row{opacity:0;transform:translateY(4px);}
+table.tbl tr.row.in{animation:rise .35s ease forwards;}
+table.tbl .num{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums;}
+.badge{display:inline-block;padding:2px 8px;border-radius:var(--radius);font-size:10.5px;font-weight:600;border:1px solid;}
+
+/* ---------- 侧栏巡游 ---------- */
+.tour{display:grid;grid-template-columns:220px 1fr;gap:16px;}
+.tour-side{background:var(--sidebar);border:1px solid var(--border);border-radius:var(--radius-xl);padding:16px;box-shadow:var(--shadow);}
+.tour-side .logo{display:grid;place-items:center;width:32px;height:32px;border-radius:var(--radius);background:var(--primary);color:var(--primary-foreground);font-weight:800;margin-bottom:16px;}
+.tour-side .grp{font-size:10px;color:var(--muted-foreground);text-transform:uppercase;letter-spacing:.08em;margin:12px 0 6px;}
+.tour-side .item{display:flex;align-items:center;gap:10px;min-height:32px;padding:6px 10px;border-radius:var(--radius);font-size:12.5px;color:var(--muted-foreground);position:relative;}
+.tour-side .item.active{background:var(--sidebar-accent);color:var(--foreground);font-weight:600;}
+.tour-side .item.active::before{content:"";position:absolute;left:0;top:6px;bottom:6px;width:2px;background:var(--primary);border-radius:2px;}
+.tour-main{background:var(--card);border-radius:var(--radius-xl);padding:16px;box-shadow:var(--shadow),0 0 0 1px rgba(255,255,255,.1);}
+.tour-main .crumb{font-size:12px;color:var(--muted-foreground);}
+.tour-main .crumb b{color:var(--foreground);}
+.tour-main .fake{margin-top:20px;height:120px;border-radius:var(--radius);background:var(--muted);display:grid;place-items:center;color:var(--muted-foreground);font-size:12px;}
+
+/* ---------- 范围切换 ---------- */
+.range-wrap{text-align:center;}
+.range-tabs{display:inline-flex;gap:8px;margin-bottom:20px;}
+.range-tab{height:32px;padding:0 12px;display:inline-flex;align-items:center;border:1px solid var(--input);border-radius:var(--radius);font-size:12.5px;color:var(--muted-foreground);background:var(--background);}
+.range-tab.active{border-color:var(--primary);color:var(--primary);background:rgba(217,119,87,.12);font-weight:600;}
+.range-num{font-family:var(--mono);font-size:40px;font-weight:700;color:var(--card-foreground);font-variant-numeric:tabular-nums;}
+.range-sub{font-size:12px;color:var(--muted-foreground);margin-top:8px;}
+.range-bars{margin-top:24px;display:grid;gap:10px;max-width:560px;margin-left:auto;margin-right:auto;text-align:left;}
+
+/* ---------- 结尾 ---------- */
+.ending{text-align:center;}
+.ending h2{font-size:28px;font-weight:700;color:var(--card-foreground);}
+.ending .nums{margin:24px 0;display:grid;grid-template-columns:repeat(3,1fr);gap:16px;max-width:640px;margin-left:auto;margin-right:auto;}
+.ending .nums .card .val{font-family:var(--mono);font-size:26px;font-weight:700;color:var(--primary);font-variant-numeric:tabular-nums;}
+.ending .nums .card .lbl{font-size:11px;color:var(--muted-foreground);margin-top:6px;}
+.ending .src{font-size:12px;color:var(--muted-foreground);margin:16px 0 24px;}
+.ending .acts{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;}
+.ending a.link{color:var(--primary);text-decoration:underline;font-size:13px;display:inline-flex;align-items:center;padding:0 8px;}
+
+.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;min-height:96px;padding:24px;border:1px dashed var(--border);border-radius:var(--radius-xl);color:var(--muted-foreground);font-size:13px;text-align:center;}
+
+@media (max-width:900px){
+  .kpis{grid-template-columns:repeat(2,minmax(0,1fr));}
+  .kpi.primary{grid-column:span 2;}
+  .charts{grid-template-columns:1fr;}
+  .chart-card.wide{grid-column:span 1;}
+  .tour{grid-template-columns:1fr;}
+  .opening h1{font-size:32px;}
+  .ending .nums{grid-template-columns:1fr;}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none !important;transition:none !important;}
+}
+</style>
+</head>
+<body>
+
+<div class="stage" id="stage">
+
+  <!-- 1 开场 -->
+  <section class="scene" data-step="0"><div class="scene-inner opening" id="opening">
+    <div class="mark">&#9672;</div>
+    <h1>Token 消耗可视化</h1>
+    <p class="sub">从本机日志到可演示的看板 · 一次 Orca 协作的完整过程</p>
+    <p class="sign">Built with Orca · 3 agents + 1 leader</p>
+  </div></section>
+
+  <!-- 2 登录 -->
+  <section class="scene" data-step="1"><div class="scene-inner login-wrap"><div class="card login-card" id="login-card">
+    <h2>登录本机后台</h2>
+    <p class="desc">演示用 · 不发送任何真实请求</p>
+    <div class="field"><label>用户名</label><div class="box"><span id="type-user"></span><span class="caret" id="caret1"></span></div></div>
+    <div class="field"><label>密码</label><div class="box"><span id="type-pw"></span><span class="caret" id="caret2"></span></div></div>
+    <button class="btn btn-primary" id="login-btn" type="button">登录 &rarr;</button>
+  </div></div></section>
+
+  <!-- 3-8 看板 -->
+  <section class="scene" data-step="2"><div class="scene-inner dash" id="dash-kpi">
+    <div class="dash-top"><h2>总览 · 关键指标</h2><span class="tag">数据填充</span></div>
+    <div class="kpis" id="kpis"></div>
+  </div></section>
+
+  <section class="scene" data-step="3"><div class="scene-inner card chart-card wide">
+    <h3>各 Agent Token 消耗 · 主视图</h3>
+    <svg class="chart" id="svg-agents" viewBox="0 0 900 210" preserveAspectRatio="xMinYMin meet" role="img"></svg>
+  </div></section>
+
+  <section class="scene" data-step="4"><div class="scene-inner card chart-card wide" style="max-width:620px;margin:0 auto;">
+    <h3>消耗占比</h3>
+    <svg class="chart" id="svg-donut" viewBox="0 0 560 240" preserveAspectRatio="xMinYMin meet" role="img"></svg>
+  </div></section>
+
+  <section class="scene" data-step="5"><div class="scene-inner card chart-card wide">
+    <h3>每日消耗趋势</h3>
+    <svg class="chart" id="svg-ts" viewBox="0 0 900 270" preserveAspectRatio="xMinYMin meet" role="img"></svg>
+  </div></section>
+
+  <section class="scene" data-step="6"><div class="scene-inner card chart-card wide">
+    <h3>模型分布 · Top 12</h3>
+    <svg class="chart" id="svg-models" viewBox="0 0 900 400" preserveAspectRatio="xMinYMin meet" role="img"></svg>
+  </div></section>
+
+  <section class="scene" data-step="7"><div class="scene-inner card chart-card wide">
+    <h3>会话明细 · Top 20</h3>
+    <div class="tbl-scroll"><table class="tbl" id="tbl-sessions"></table></div>
+  </div></section>
+
+  <!-- 9 侧栏巡游 -->
+  <section class="scene" data-step="8"><div class="scene-inner tour">
+    <div class="tour-side" id="tour-side">
+      <div class="logo">&#9672;</div>
+      <div class="grp">概览</div><div class="item" data-name="总览">&#9635; 总览</div>
+      <div class="grp">分析</div>
+      <div class="item" data-name="各 Agent 消耗">&#9642; 各 Agent 消耗</div>
+      <div class="item" data-name="每日趋势">&#9698; 每日趋势</div>
+      <div class="item" data-name="消耗占比">&#9678; 消耗占比</div>
+      <div class="item" data-name="模型分布">&#9636; 模型分布</div>
+      <div class="grp">数据</div>
+      <div class="item" data-name="会话明细">&#9776; 会话明细</div>
+    </div>
+    <div class="tour-main">
+      <div class="crumb">看板 / <b id="crumb-name">总览</b></div>
+      <div class="fake" id="tour-fake">总览</div>
+    </div>
+  </div></section>
+
+  <!-- 10 时间范围 -->
+  <section class="scene" data-step="9"><div class="scene-inner range-wrap">
+    <div class="range-tabs" id="range-tabs"></div>
+    <div class="range-num mono" id="range-num">0</div>
+    <div class="range-sub" id="range-sub"></div>
+    <div class="range-bars" id="range-bars"></div>
+  </div></section>
+
+  <!-- 11 结尾 -->
+  <section class="scene" data-step="10"><div class="scene-inner ending">
+    <h2>从日志到看板，一次协作完成</h2>
+    <div class="nums" id="end-nums"></div>
+    <p class="src" id="end-src"></p>
+    <div class="acts">
+      <button class="btn btn-primary" id="replay-btn" type="button">&#8635; 重播</button>
+      <a class="link" href="demo-orca.html">下一步 · 了解 Orca &rarr;</a>
+    </div>
+  </div></section>
+
+</div>
+
+<div class="caption" id="caption"><span class="step-no" id="cap-no"></span><span id="cap-text"></span></div>
+
+<div class="dock">
+  <span class="step-label" id="step-label"></span>
+  <button class="btn" id="prev-btn" type="button" title="上一步">&#8592;</button>
+  <button class="btn btn-primary" id="play-btn" type="button" title="播放/暂停">暂停</button>
+  <button class="btn" id="next-btn" type="button" title="下一步">&#8594;</button>
+  <div class="progress"><i id="progress-fill"></i></div>
+  <button class="btn" id="speed-btn" type="button" title="倍速">1x</button>
+  <button class="btn" id="restart-btn" type="button" title="重播">&#8635;</button>
+  <span class="step-label spacer" style="min-width:0;white-space:nowrap;font-size:10.5px;">&larr;/&rarr; 切步 · 空格暂停</span>
+  <a href="demo-orca.html" style="margin-left:6px;white-space:nowrap;font-size:11.5px;color:var(--primary);text-decoration:underline;text-underline-offset:2px;">了解 Orca &rarr;</a>
+</div>
+
+<!-- 演示数据：内联自 demo-data.js（file:// 双击即放，不依赖外部 script 加载） -->
+<script>
+/* 演示合成数据 */
+window.DEMO_DATA = {"overview":{"event_count":4200,"total_tokens":1280000000,"input_tokens":470000000,"output_tokens":26000000,"total_cost_usd":0.0,"agent_count":3,"days_with_data":78,"first_day":"2026-01-01","last_day":"2026-04-20","days":110},"by_agent":[{"agent":"pi","total_tokens":830000000,"input_tokens":120000000,"output_tokens":18000000,"event_count":2600,"cost_usd":0.0},{"agent":"codex","total_tokens":360000000,"input_tokens":330000000,"output_tokens":6000000,"event_count":1200,"cost_usd":0.0},{"agent":"claude","total_tokens":90000000,"input_tokens":20000000,"output_tokens":2000000,"event_count":400,"cost_usd":0.0}],"timeseries":[{"day":"2026-01-05","total":12000000,"by_agent":{"pi":7440000,"codex":3600000,"claude":960000}},{"day":"2026-01-08","total":34000000,"by_agent":{"pi":21080000,"codex":10200000,"claude":2720000}},{"day":"2026-01-11","total":8000000,"by_agent":{"pi":4960000,"codex":2400000,"claude":640000}},{"day":"2026-01-14","total":51000000,"by_agent":{"pi":31620000,"codex":15300000,"claude":4080000}},{"day":"2026-01-17","total":22000000,"by_agent":{"pi":13640000,"codex":6600000,"claude":1760000}},{"day":"2026-01-20","total":47000000,"by_agent":{"pi":29140000,"codex":14100000,"claude":3760000}},{"day":"2026-01-23","total":9000000,"by_agent":{"pi":5580000,"codex":2700000,"claude":720000}},{"day":"2026-01-26","total":63000000,"by_agent":{"pi":39060000,"codex":18900000,"claude":5040000}},{"day":"2026-01-29","total":18000000,"by_agent":{"pi":11160000,"codex":5400000,"claude":1440000}},{"day":"2026-02-01","total":29000000,"by_agent":{"pi":17980000,"codex":8700000,"claude":2320000}},{"day":"2026-02-04","total":41000000,"by_agent":{"pi":25420000,"codex":12300000,"claude":3280000}},{"day":"2026-02-07","total":15000000,"by_agent":{"pi":9300000,"codex":4500000,"claude":1200000}}],"by_model":[{"model":"demo-model-a","agent":"pi","total_tokens":520000000,"event_count":11555},{"model":"demo-model-b","agent":"pi","total_tokens":310000000,"event_count":6888},{"model":"demo-model-c","agent":"codex","total_tokens":240000000,"event_count":5333},{"model":"demo-model-d","agent":"pi","total_tokens":150000000,"event_count":3333},{"model":"demo-model-e","agent":"claude","total_tokens":90000000,"event_count":2000},{"model":"demo-model-f","agent":"codex","total_tokens":60000000,"event_count":1333}],"sessions":[{"session_id":"demo-0000-1000-2000-3000","agent":"pi","model":"demo-model-a","day":"2026-01-05","total_tokens":900000000,"event_count":20000},{"session_id":"demo-0001-1025-2035-3047","agent":"codex","model":"demo-model-b","day":"2026-01-08","total_tokens":450000000,"event_count":10000},{"session_id":"demo-0002-104a-206a-308e","agent":"claude","model":"demo-model-c","day":"2026-01-11","total_tokens":300000000,"event_count":6666},{"session_id":"demo-0003-106f-209f-30d5","agent":"pi","model":"demo-model-d","day":"2026-01-14","total_tokens":225000000,"event_count":5000},{"session_id":"demo-0004-1094-20d4-311c","agent":"codex","model":"demo-model-e","day":"2026-01-17","total_tokens":180000000,"event_count":4000},{"session_id":"demo-0005-10b9-2109-3163","agent":"claude","model":"demo-model-f","day":"2026-01-20","total_tokens":150000000,"event_count":3333},{"session_id":"demo-0006-10de-213e-31aa","agent":"pi","model":"demo-model-a","day":"2026-01-23","total_tokens":128571428,"event_count":2857},{"session_id":"demo-0007-1103-2173-31f1","agent":"codex","model":"demo-model-b","day":"2026-01-26","total_tokens":112500000,"event_count":2500}],"ranges":{"7":{"total_tokens":180000000,"event_count":520,"days":7,"days_param":7,"label":"近 7 天","by_agent":[{"agent":"pi","total_tokens":117000000},{"agent":"codex","total_tokens":50400000},{"agent":"claude","total_tokens":12600000}]},"30":{"total_tokens":620000000,"event_count":1900,"days":30,"days_param":30,"label":"近 30 天","by_agent":[{"agent":"pi","total_tokens":403000000},{"agent":"codex","total_tokens":173600000},{"agent":"claude","total_tokens":43400000}]},"90":{"total_tokens":1100000000,"event_count":3600,"days":90,"days_param":90,"label":"近 90 天","by_agent":[{"agent":"pi","total_tokens":715000000},{"agent":"codex","total_tokens":308000000},{"agent":"claude","total_tokens":77000000}]},"0":{"total_tokens":1280000000,"event_count":4200,"days":110,"days_param":0,"label":"全部","by_agent":[{"agent":"pi","total_tokens":832000000},{"agent":"codex","total_tokens":358400000},{"agent":"claude","total_tokens":89600000}]}},"meta":{"captured_at":"2026-01-01T00:00:00+08:00","source":"演示合成数据","source_db":"（无）","anchor_day":"2026-04-20","note":"全部数值均为演示生成的合成数据，与任何实际用量无关"}};
+</script>
+<script>
+'use strict';
+/* ================= 演示动画：只读 DEMO_DATA，零网络请求 ================= */
+var D = window.DEMO_DATA;
+var AG = { pi: '#7c9cff', codex: '#3fb6a8', claude: '#e08a5f' };
+var EXTRA = ['#b48ead','#e5b567','#6fbf73','#d16b8c','#5aa9e6','#c08fd6'];
+function color(a){ return AG[a] || EXTRA[0]; }
+function num(v){ var x = Number(v); return isFinite(x) ? x : 0; }
+function fmt(n){ return (Number(n)||0).toLocaleString('en-US'); }
+function compact(n){
+  n = num(n); var abs = Math.abs(n);
+  var u = [[1e9,'B'],[1e6,'M'],[1e3,'K']];
+  for (var i=0;i<u.length;i++) if (abs>=u[i][0]) {
+    var x=n/u[i][0], d=Math.abs(x)>=100?0:Math.abs(x)>=10?1:2;
+    return x.toFixed(d).replace(/\.0+$/,'').replace(/(\.\d*?)0+$/,'$1')+u[i][1];
+  }
+  return String(n);
+}
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){
+  return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function trunc(s,n){ s=String(s==null?'':s); return s.length>n?s.slice(0,n-1)+'…':s; }
+function pct(p,t){ return t>0?(p/t)*100:0; }
+function pctLabel(pc){ return (pc>0&&pc<0.1)?'&lt;0.1%':(pc.toFixed(1)+'%'); }
+var REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+var CAPTIONS = [
+  '刚开始用 Orca：一个 leader 带着 3 个 agent，从演示数据开始。',
+  '先走进产品：登录页由 pi 实现，这里只做演示打字与滑出，不发真实请求。',
+  '看板骨架加载完成，7 张 KPI 的数字开始从演示数据里滚动填充。',
+  '主视图按 agent 逐条增长 —— pi、codex、claude 的消耗一目了然。',
+  '环形图扇区逐个绘制，占比来自同一份演示数据。',
+  '按天堆叠的趋势图描绘出来，覆盖最近有记录的日子。',
+  '模型分布条形依次滑入，各模型消耗来自演示数据聚合。',
+  '会话明细表格逐行淡入，每一行都是演示会话。',
+  '侧边栏巡游：菜单依次高亮，面包屑跟着变化。',
+  '时间范围 7 / 30 / 90 / 全部 依次切换，总量按 day 子集计算。',
+  '这就是这次协作的成果。数据为演示合成数据，可随时重播。'
+];
+var STEP_NAMES = ['开场','登录','KPI 填充','主视图','环形图','趋势图','模型分布','会话明细','侧栏巡游','时间范围','结尾'];
+var N = CAPTIONS.length;
+var DUR = [3200, 3400, 3600, 3400, 3000, 3400, 3200, 3200, 3400, 4200, 5200];
+
+var step = 0, playing = true, speed = 1, timer = null, elapsed = 0, lastTick = 0;
+
+/* ---------- 时间轴 ---------- */
+function tick(ts){
+  if (!lastTick) lastTick = ts;
+  var dt = ts - lastTick; lastTick = ts;
+  if (playing && !REDUCED) {
+    elapsed += dt * speed;
+    if (elapsed >= DUR[step]) { elapsed = 0; go(step + 1); }
+  }
+  requestAnimationFrame(tick);
+}
+function go(n){
+  if (n >= N) { playing = false; syncPlayBtn(); return; }
+  if (n < 0) n = 0;
+  step = n; elapsed = 0;
+  renderStep(step);
+  updateDock();
+}
+function updateDock(){
+  document.getElementById('step-label').innerHTML = '<b>' + (step+1) + '/' + N + '</b> · ' + esc(STEP_NAMES[step]);
+  document.getElementById('progress-fill').style.width = ((step)/ (N-1) * 100) + '%';
+  document.getElementById('cap-no').textContent = String(step+1).padStart(2,'0');
+  document.getElementById('cap-text').textContent = CAPTIONS[step];
+  var cap = document.getElementById('caption');
+  cap.classList.remove('on'); void cap.offsetWidth; cap.classList.add('on');
+  document.querySelectorAll('.scene').forEach(function(s){
+    s.classList.toggle('on', Number(s.getAttribute('data-step')) === step);
+  });
+}
+function syncPlayBtn(){ document.getElementById('play-btn').textContent = playing ? '暂停' : '播放'; }
+function setPlaying(v){ playing = v; syncPlayBtn(); }
+
+/* ---------- 场景渲染（每步重放动画） ---------- */
+function renderStep(n){
+  var st = document.getElementById('stage');
+  st.classList.remove('play'); void st.offsetWidth; st.classList.add('play');
+  if (n === 1) playLogin();
+  if (n === 2) playKPIs();
+  if (n === 3) playBars();
+  if (n === 4) playDonut();
+  if (n === 5) playTimeseries();
+  if (n === 6) playModels();
+  if (n === 7) playSessions();
+  if (n === 8) playTour();
+  if (n === 9) playRanges();
+  if (n === 10) playEnding();
+}
+
+/* 2 登录：逐字打字 + 点击 + 滑出 */
+var loginTimers = [];
+function playLogin(){
+  loginTimers.forEach(clearTimeout); loginTimers = [];
+  var card = document.getElementById('login-card');
+  card.classList.remove('leaving');
+  var u = document.getElementById('type-user'), p = document.getElementById('type-pw');
+  var c1 = document.getElementById('caret1'), c2 = document.getElementById('caret2');
+  u.textContent = ''; p.textContent = ''; c1.style.display='inline-block'; c2.style.display='none';
+  var su = 'admin', sp = '••••••••';
+  if (REDUCED) { u.textContent=su; p.textContent=sp; c1.style.display='none'; return; }
+  function type(el, s, done){
+    var i = 0;
+    (function t(){
+      if (i > s.length) { if (done) done(); return; }
+      el.textContent = s.slice(0, i++);
+      loginTimers.push(setTimeout(t, 95));
+    })();
+  }
+  type(u, su, function(){
+    c1.style.display='none'; c2.style.display='inline-block';
+    type(p, sp, function(){
+      c2.style.display='none';
+      loginTimers.push(setTimeout(function(){ card.classList.add('leaving'); }, 480));
+    });
+  });
+}
+
+/* 3 KPI count-up */
+var kpiTimers = [];
+function playKPIs(){
+  kpiTimers.forEach(clearInterval); kpiTimers = [];
+  var ov = D.overview, ts = D.timeseries;
+  var cards = [
+    {l:'总 tokens', v:ov.total_tokens, sub:'各次调用上报总量之和', primary:true, f:compact},
+    {l:'输入 tokens', v:ov.input_tokens, sub:'input_tokens 累计', f:compact},
+    {l:'输出 tokens', v:ov.output_tokens, sub:'output_tokens 累计', f:compact},
+    {l:'覆盖天数', v:ov.days_with_data, sub:'有消耗记录的天数', f:fmt},
+    {l:'活跃 Agent', v:ov.agent_count, sub:'产生消耗的来源数', f:fmt},
+    {l:'事件数', v:ov.event_count, sub:'token 记录条数', f:compact},
+    {l:'成本 (USD)', v:ov.total_cost_usd, sub:'仅含提供定价的来源', f:function(x){return '$'+x.toFixed(2);}}
+  ];
+  var host = document.getElementById('kpis');
+  host.innerHTML = cards.map(function(c,i){
+    return '<div class="kpi'+(c.primary?' primary':'')+'" data-i="'+i+'">'+
+      '<div class="lbl">'+esc(c.l)+'</div>'+
+      '<div class="val" data-target="'+c.v+'">0</div>'+
+      '<div class="sub">'+esc(c.sub)+'</div></div>';
+  }).join('');
+  var nodes = host.querySelectorAll('.kpi');
+  nodes.forEach(function(el,i){ loginTimers.push(setTimeout(function(){ el.classList.add('in'); }, REDUCED?0:i*90)); });
+  if (REDUCED) { host.querySelectorAll('.val').forEach(function(el){ el.textContent = cards[Number(el.parentNode.getAttribute('data-i'))].f(num(el.getAttribute('data-target'))); }); return; }
+  host.querySelectorAll('.val').forEach(function(el){
+    var i = Number(el.parentNode.getAttribute('data-i'));
+    var target = num(el.getAttribute('data-target')), t0 = performance.now(), dur = 1200;
+    var id = setInterval(function(){
+      var k = Math.min(1, (performance.now()-t0)/dur);
+      var e = 1 - Math.pow(1-k, 3);
+      el.textContent = cards[i].f(target*e);
+      if (k >= 1) clearInterval(id);
+    }, 30);
+    kpiTimers.push(id);
+  });
+}
+
+/* 4 主视图：条形逐条增长 */
+function playBars(){
+  var rows = D.by_agent.slice().sort(function(a,b){return b.total_tokens-a.total_tokens;});
+  var W=900, padL=16, labelW=150, rightW=210, padR=16, barX=padL+labelW;
+  var rightStart=W-padR-rightW, barMaxW=Math.max(40,rightStart-barX-20), rowH=58, topH=34;
+  var max=Math.max.apply(null,rows.map(function(r){return num(r.total_tokens);}))||1;
+  var total=rows.reduce(function(s,r){return s+num(r.total_tokens);},0)||1;
+  var H=topH+rows.length*rowH+12, s=[];
+  s.push('<text x="'+padL+'" y="20" class="head">AGENT</text>');
+  s.push('<text x="'+barX+'" y="20" class="head">TOKENS 消耗分布</text>');
+  s.push('<text x="'+rightStart+'" y="20" class="head">数值 / 占比</text>');
+  rows.forEach(function(r,i){
+    var cy=topH+i*rowH+rowH/2, bh=26, by=cy-bh/2;
+    var w=Math.max(3,num(r.total_tokens)/max*barMaxW), c=color(r.agent), pc=pct(num(r.total_tokens),total);
+    s.push('<rect x="'+padL+'" y="'+(cy-7)+'" width="12" height="12" rx="2" fill="'+c+'"/>');
+    s.push('<text x="'+(padL+20)+'" y="'+(cy+5)+'" class="lbl">'+esc(r.agent)+'</text>');
+    s.push('<rect x="'+barX+'" y="'+by+'" width="'+barMaxW+'" height="'+bh+'" rx="2" class="track"/>');
+    s.push('<rect class="bar" x="'+barX+'" y="'+by+'" width="'+w.toFixed(1)+'" height="'+bh+'" rx="2" fill="'+c+'" style="transition-delay:'+(i*0.18)+'s"/>');
+    s.push('<text x="'+rightStart+'" y="'+(cy-2)+'" class="val">'+fmt(r.total_tokens)+'</text>');
+    s.push('<text x="'+rightStart+'" y="'+(cy+15)+'" class="pct">'+pctLabel(pc)+' · '+compact(r.total_tokens)+'</text>');
+  });
+  var svg=document.getElementById('svg-agents');
+  svg.setAttribute('viewBox','0 0 '+W+' '+H);
+  svg.innerHTML=s.join('');
+  if (REDUCED) return;
+  svg.querySelectorAll('.bar').forEach(function(b){
+    var w=b.getAttribute('width'); b.setAttribute('width','0');
+    setTimeout(function(){ b.setAttribute('width', w); }, 60);
+  });
+}
+
+/* 5 环形图：stroke-dasharray 逐段绘制 */
+function playDonut(){
+  var segs=D.by_agent.filter(function(d){return num(d.total_tokens)>0;});
+  var total=segs.reduce(function(s,d){return s+num(d.total_tokens);},0)||1;
+  var W=560,H=240,cx=150,cy=H/2,R=88,r=54,mid=(R+r)/2,band=R-r;
+  var C=2*Math.PI*mid, s=[];
+  s.push('<circle cx="'+cx+'" cy="'+cy+'" r="'+mid+'" fill="none" stroke="var(--muted)" stroke-width="'+band+'"/>');
+  var acc=0;
+  segs.forEach(function(d,i){
+    var frac=num(d.total_tokens)/total, len=frac*C, pc=pct(num(d.total_tokens),total);
+    s.push('<circle class="seg" cx="'+cx+'" cy="'+cy+'" r="'+mid+'" fill="none" stroke="'+color(d.agent)+'" stroke-width="'+band+'"'+
+      ' stroke-dasharray="'+len.toFixed(2)+' '+(C-len).toFixed(2)+'"'+
+      ' stroke-dashoffset="'+(-acc).toFixed(2)+'"'+
+      ' transform="rotate(-90 '+cx+' '+cy+')" style="opacity:0;transition-delay:'+(i*0.25)+'s"/>');
+    var ly=cy-(segs.length*34)/2+i*34+17;
+    s.push('<rect x="290" y="'+(ly-6)+'" width="8" height="8" rx="2" fill="'+color(d.agent)+'"/>');
+    s.push('<text x="306" y="'+(ly+4)+'" class="lbl">'+esc(d.agent)+'</text>');
+    s.push('<text x="'+ (W-14) +'" y="'+(ly+4)+'" text-anchor="end" class="pct">'+pctLabel(pc)+' · '+compact(d.total_tokens)+'</text>');
+    acc+=len;
+  });
+  s.push('<text x="'+cx+'" y="'+(cy-2)+'" text-anchor="middle" class="val" style="font-size:21px">'+compact(total)+'</text>');
+  s.push('<text x="'+cx+'" y="'+(cy+18)+'" text-anchor="middle" class="pct">总 tokens</text>');
+  var svg=document.getElementById('svg-donut'); svg.innerHTML=s.join('');
+  if (REDUCED) { svg.querySelectorAll('.seg').forEach(function(x){x.style.opacity='1';}); return; }
+  svg.querySelectorAll('.seg').forEach(function(x,i){ setTimeout(function(){ x.style.opacity='1'; }, 120+i*250); });
+}
+
+/* 6 趋势图：面积路径绘制 + 渐变填充浮现 */
+function playTimeseries(){
+  var rows=D.timeseries, agents=D.by_agent.map(function(d){return d.agent;});
+  var W=900,H=270,padL=56,padR=16,padT=30,padB=30;
+  var plotW=W-padL-padR, plotH=H-padT-padB, n=rows.length;
+  var stacks=rows.map(function(row){
+    var cum=0, up=[], lo=[];
+    agents.forEach(function(a){ lo.push(cum); cum+=num((row.by_agent||{})[a]); up.push(cum); });
+    return {lo:lo,up:up,top:cum};
+  });
+  var maxTop=Math.max.apply(null,stacks.map(function(s){return s.top;}))||1;
+  var mag=Math.pow(10,Math.floor(Math.log10(maxTop*1.05))), norm=maxTop*1.05/mag;
+  var steps=[1,1.2,1.5,2,2.5,3,4,5,6,8,10], sc=10;
+  for (var i=0;i<steps.length;i++) if (norm<=steps[i]) { sc=steps[i]; break; }
+  var maxY=sc*mag;
+  var x=function(i){ return n>1?padL+i*plotW/(n-1):padL+plotW/2; };
+  var y=function(v){ return padT+plotH*(1-v/maxY); };
+  var s=[];
+  s.push('<defs><linearGradient id="tsfill" x1="0" y1="0" x2="0" y2="1">'+
+    '<stop offset="0%" stop-color="'+AG.pi+'" stop-opacity="0.45"/>'+
+    '<stop offset="100%" stop-color="'+AG.pi+'" stop-opacity="0.04"/>'+
+    '</linearGradient></defs>');
+  for (var k=0;k<=4;k++){
+    var val=maxY*k/4, yy=y(val);
+    s.push('<line x1="'+padL+'" y1="'+yy+'" x2="'+(W-padR)+'" y2="'+yy+'" class="grid-line"/>');
+    s.push('<text x="'+(padL-8)+'" y="'+(yy+4)+'" text-anchor="end" class="axis">'+compact(val)+'</text>');
+  }
+  var pts=[];
+  for (var j=0;j<n;j++) pts.push(x(j)+','+y(stacks[j].top));
+  s.push('<polygon class="area" points="'+pts.join(' ')+' '+x(n-1)+','+y(0)+' '+x(0)+','+y(0)+
+    '" fill="url(#tsfill)" style="opacity:0"/>');
+  s.push('<polyline class="line" points="'+pts.join(' ')+'" fill="none" stroke="'+AG.pi+'" stroke-width="2" stroke-linejoin="round"'+
+    ' stroke-dasharray="3000" stroke-dashoffset="3000"/>');
+  var stp=Math.max(1,Math.ceil(n/8));
+  for (var q=0;q<n;q++) if (q%stp===0||q===n-1)
+    s.push('<text x="'+x(q)+'" y="'+(H-9)+'" text-anchor="middle" class="axis">'+esc(String(rows[q].day).slice(5))+'</text>');
+  var svg=document.getElementById('svg-ts'); svg.innerHTML=s.join('');
+  var line=svg.querySelector('.line'), area=svg.querySelector('.area');
+  var L=line.getTotalLength ? line.getTotalLength() : 3000;
+  line.setAttribute('stroke-dasharray',L); line.setAttribute('stroke-dashoffset',L);
+  if (REDUCED) { line.setAttribute('stroke-dashoffset','0'); area.style.opacity='1'; return; }
+  setTimeout(function(){ line.style.transition='stroke-dashoffset 1.2s ease'; line.setAttribute('stroke-dashoffset','0'); },80);
+  setTimeout(function(){ area.style.transition='opacity .8s ease'; area.style.opacity='1'; },420);
+}
+
+/* 7 模型分布：条形依次滑入 */
+function playModels(){
+  var rows=D.by_model.slice(0,12);
+  var W=900,padL=16,labelW=230,rightW=170,padR=16,barX=padL+labelW;
+  var rightStart=W-padR-rightW,barMaxW=Math.max(40,rightStart-barX-20),rowH=32,topH=30;
+  var max=Math.max.apply(null,rows.map(function(r){return num(r.total_tokens);}))||1;
+  var s=[];
+  s.push('<text x="'+padL+'" y="18" class="head">模型 / 来源</text>');
+  s.push('<text x="'+barX+'" y="18" class="head">TOKENS 消耗分布</text>');
+  s.push('<text x="'+rightStart+'" y="18" class="head">数值 / 调用</text>');
+  rows.forEach(function(r,i){
+    var cy=topH+i*rowH+rowH/2,bh=16,by=cy-bh/2;
+    var w=Math.max(3,num(r.total_tokens)/max*barMaxW),c=color(r.agent);
+    s.push('<text x="'+(padL+20)+'" y="'+(cy+4)+'" class="lbl" style="font-size:11px">'+esc(trunc(r.model,30))+'</text>');
+    s.push('<rect x="'+barX+'" y="'+by+'" width="'+barMaxW+'" height="'+bh+'" rx="2" class="track"/>');
+    s.push('<rect class="bar" x="'+barX+'" y="'+by+'" width="'+w.toFixed(1)+'" height="'+bh+'" rx="2" fill="'+c+'" style="transition-delay:'+(i*0.08)+'s"/>');
+    s.push('<text x="'+rightStart+'" y="'+(cy+4)+'" class="val" style="font-size:11px">'+fmt(r.total_tokens)+'</text>');
+  });
+  var svg=document.getElementById('svg-models');
+  svg.setAttribute('viewBox','0 0 '+W+' '+(topH+rows.length*rowH+10));
+  svg.innerHTML=s.join('');
+  if (REDUCED) return;
+  svg.querySelectorAll('.bar').forEach(function(b){
+    var w=b.getAttribute('width'); b.setAttribute('width','0');
+    setTimeout(function(){ b.setAttribute('width',w); },60);
+  });
+}
+
+/* 8 会话表格逐行淡入 */
+var rowTimers=[];
+function playSessions(){
+  rowTimers.forEach(clearTimeout); rowTimers=[];
+  var t=document.getElementById('tbl-sessions');
+  var h='<thead><tr><th>#</th><th>Session ID</th><th>Agent</th><th>Model</th><th>Day</th><th class="num">Tokens</th><th class="num">事件</th></tr></thead><tbody>';
+  D.sessions.forEach(function(r,i){
+    var c=color(r.agent);
+    h+='<tr class="row" data-i="'+i+'">'+
+      '<td class="muted mono">'+(i+1)+'</td>'+
+      '<td class="mono muted" title="'+esc(r.session_id)+'">'+esc(trunc(r.session_id,22))+'</td>'+
+      '<td><span class="badge" style="color:'+c+';border-color:'+c+'55;background:'+c+'1f">'+esc(r.agent)+'</span></td>'+
+      '<td class="muted" title="'+esc(r.model)+'">'+esc(trunc(r.model,30))+'</td>'+
+      '<td class="mono muted">'+esc(r.day)+'</td>'+
+      '<td class="num">'+fmt(r.total_tokens)+'</td>'+
+      '<td class="num muted">'+fmt(r.event_count)+'</td></tr>';
+  });
+  t.innerHTML=h+'</tbody>';
+  t.querySelectorAll('tr.row').forEach(function(tr,i){
+    rowTimers.push(setTimeout(function(){ tr.classList.add('in'); }, REDUCED?0:i*70));
+  });
+}
+
+/* 9 侧栏巡游 */
+var tourTimers=[];
+function playTour(){
+  tourTimers.forEach(clearTimeout); tourTimers=[];
+  var items=[].slice.call(document.querySelectorAll('#tour-side .item'));
+  var crumb=document.getElementById('crumb-name'), fake=document.getElementById('tour-fake');
+  items.forEach(function(x){ x.classList.remove('active'); });
+  items.forEach(function(x,i){
+    tourTimers.push(setTimeout(function(){
+      items.forEach(function(y){ y.classList.remove('active'); });
+      x.classList.add('active');
+      var name=x.getAttribute('data-name');
+      crumb.textContent=name; fake.textContent=name;
+    }, REDUCED?0:i*420));
+  });
+}
+
+/* 10 时间范围：真实子集 */
+var rangeTimers=[];
+function playRanges(){
+  rangeTimers.forEach(clearTimeout); rangeTimers=[];
+  var keys=['7','30','90','0'], labels=['近 7 天','近 30 天','近 90 天','全部'];
+  var tabs=document.getElementById('range-tabs');
+  tabs.innerHTML=keys.map(function(k,i){ return '<span class="range-tab" data-k="'+k+'">'+esc(labels[i])+'</span>'; }).join('');
+  var tabEls=[].slice.call(tabs.querySelectorAll('.range-tab'));
+  function show(k){
+    var d=D.ranges[k]; if(!d) return;
+    tabEls.forEach(function(x){ x.classList.toggle('active', x.getAttribute('data-k')===k); });
+    document.getElementById('range-num').textContent=fmt(d.total_tokens);
+    document.getElementById('range-sub').textContent=d.label+' · '+fmt(d.event_count)+' 条事件 · '+d.days+' 天有记录';
+    var max=Math.max.apply(null,d.by_agent.map(function(a){return num(a.total_tokens);}))||1;
+    document.getElementById('range-bars').innerHTML=d.by_agent.map(function(a){
+      var w=(num(a.total_tokens)/max*100).toFixed(1);
+      return '<div><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px">'+
+        '<span>'+esc(a.agent)+'</span><span class="mono muted">'+compact(a.total_tokens)+'</span></div>'+
+        '<div style="height:8px;border-radius:8px;background:var(--muted);overflow:hidden">'+
+        '<div style="height:100%;width:'+w+'%;background:'+color(a.agent)+';border-radius:8px"></div></div></div>';
+    }).join('');
+  }
+  tabEls.forEach(function(x){ x.addEventListener('click',function(){ show(x.getAttribute('data-k')); }); });
+  if (REDUCED) { show('0'); return; }
+  keys.forEach(function(k,i){ rangeTimers.push(setTimeout(function(){ show(k); }, i*900)); });
+  show('7');
+}
+
+/* 11 结尾 */
+function playEnding(){
+  var ov=D.overview;
+  document.getElementById('end-nums').innerHTML=
+    '<div class="card"><div class="val">'+fmt(ov.event_count)+'</div><div class="lbl">事件数</div></div>'+
+    '<div class="card"><div class="val">'+compact(ov.total_tokens)+'</div><div class="lbl">总 tokens</div></div>'+
+    '<div class="card"><div class="val">'+ov.agent_count+'</div><div class="lbl">协作 agents</div></div>';
+  document.getElementById('end-src').textContent='数据来源：'+D.meta.source+' · 覆盖 '+ov.first_day+' 至 '+ov.last_day;
+}
+
+/* ---------- 控件 ---------- */
+document.getElementById('prev-btn').addEventListener('click',function(){ go(step-1); });
+document.getElementById('next-btn').addEventListener('click',function(){ go(step+1); });
+document.getElementById('play-btn').addEventListener('click',function(){ setPlaying(!playing); });
+document.getElementById('restart-btn').addEventListener('click',function(){ go(0); setPlaying(true); });
+document.getElementById('replay-btn').addEventListener('click',function(){ go(0); setPlaying(true); });
+document.getElementById('speed-btn').addEventListener('click',function(){
+  speed = speed===1?2:1;
+  document.getElementById('speed-btn').textContent=speed+'x';
+});
+document.addEventListener('keydown',function(e){
+  if (e.key==='ArrowLeft'){ e.preventDefault(); go(step-1); }
+  else if (e.key==='ArrowRight'){ e.preventDefault(); go(step+1); }
+  else if (e.key===' '){ e.preventDefault(); setPlaying(!playing); }
+});
+document.getElementById('login-btn').addEventListener('click',function(){
+  document.getElementById('login-card').classList.add('leaving');
+});
+
+if (!D) {
+  document.getElementById('stage').innerHTML='<div class="empty">数据快照未加载：请确认 demo-data.js 与 demo.html 在同一目录。</div>';
+} else {
+  if (REDUCED) { step=N-1; playing=false; syncPlayBtn(); renderAllFinal(); }
+  else { renderStep(0); }
+  updateDock();
+  requestAnimationFrame(tick);
+}
+function renderAllFinal(){
+  // reduced-motion：直接显示终态（结尾卡 + 所有图表终值）
+  playKPIs(); playBars(); playDonut(); playTimeseries(); playModels(); playSessions(); playRanges(); playEnding();
+}
+</script>
+</body>
+</html>
