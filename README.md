@@ -8,9 +8,9 @@
 
 ## ▶ 在线演示
 
-<https://github.com/user-attachments/assets/c9b57a45-6e54-4d67-b117-7f70b94009bd>
+<https://github.com/user-attachments/assets/04799a96-5304-41df-a0b1-83fe13dfb652>
 
-产品演示录屏（11 场景 · 约 42 秒）。无需安装、无需启动服务，也可直接打开可交互的在线演示页：
+产品宣传片（8 场景 · 47 秒 · 中文旁白）。无需安装、无需启动服务，也可直接打开可交互的在线演示页：
 
 - **[产品演示 · 11 场景动画](https://0xamoxicillin.github.io/token-ledger/demo.html)**
 - [协作历程演示 · 6 场景动画](https://0xamoxicillin.github.io/token-ledger/demo-orca.html)
